@@ -35,9 +35,13 @@
 # sudo apt-get install python-argparse
 
 """
-The Kinect provides the color and depth images in an un-synchronized way. This means that the set of time stamps from the color images do not intersect with those of the depth images. Therefore, we need some way of associating color images to depth images.
+The Kinect provides the color and depth images in an un-synchronized way. 
+This means that the set of timestamps from the color images do not intersect with those of the depth images. 
+Therefore, we need some way of associating color images to depth images.
 
-For this purpose, you can use the ''associate.py'' script. It reads the time stamps from the rgb.txt file and the depth.txt file, and joins them by finding the best matches.
+For this purpose, you can use the ''associate.py'' script. 
+It reads the timestamps from the rgb.txt file and the depth.txt file, 
+and joins them by finding the best matches.
 """
 
 import argparse
@@ -59,21 +63,25 @@ def read_file_list(filename):
 
     Output:
     dict -- dictionary of (stamp,data) tuples
-
     """
     file = open(filename)
     data = file.read()
     lines = data.replace(",", " ").replace("\t", " ").split("\n")
-    list = [[v.strip() for v in line.split(" ") if v.strip() != ""]
-            for line in lines if len(line) > 0 and line[0] != "#"]
-    list = [(float(l[0]), l[1:]) for l in list if len(l) > 1]
-    return dict(list)
+    list = [
+        [v.strip() for v in line.split(" ") if v.strip() != ""]
+        for line in lines if len(line) > 0 and line[0] != "#"
+    ]
+    list = [  # (stamp,data)
+        (float(l[0]), l[1:]) for l in list if len(l) > 1
+    ]
+    return dict(list)  # dictionaries of (stamp,data)
 
 
 def associate(first_list, second_list, offset, max_difference):
     """
-    Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim 
-    to find the closest match for every input tuple.
+    Associate two dictionaries of (stamp,data). 
+    As the timestamps never match exactly, 
+    we aim to find the closest match for every input tuple.
 
     Input:
     first_list -- first dictionary of (stamp,data) tuples
@@ -85,16 +93,18 @@ def associate(first_list, second_list, offset, max_difference):
     matches -- list of matched tuples ((stamp1,data1),(stamp2,data2))
 
     """
-    first_keys = first_list.keys()
+    first_keys = first_list.keys()  # key=timestamp
     second_keys = second_list.keys()
-    potential_matches = [(abs(a - (b + offset)), a, b)
-                         for a in first_keys
-                         for b in second_keys
-                         if abs(a - (b + offset)) < max_difference]
+    potential_matches = [
+        (abs(a - (b + offset)), a, b)  # (时间差, first的时间戳, second的时间戳)
+        for a in first_keys
+        for b in second_keys
+        if abs(a - (b + offset)) < max_difference  # 符合准入条件
+    ]
     potential_matches.sort()
     matches = []
     for diff, a, b in potential_matches:
-        if a in first_keys and b in second_keys:
+        if a in first_keys and b in second_keys:  # 为了保证不重复：只要有一对匹配上就可，不能一对多！
             first_keys.remove(a)
             second_keys.remove(b)
             matches.append((a, b))

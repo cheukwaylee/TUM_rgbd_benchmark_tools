@@ -78,7 +78,7 @@ def transform44(l):
 
 def read_trajectory(filename, matrix=True):
     """
-    Read a trajectory from a text file. 
+    Read a trajectory from a text file.
 
     Input:
     filename -- file to be read
@@ -161,7 +161,7 @@ def ominus(a, b):  # b wrt a: a->b
     Output:
     Relative 3D transformation from a to b.
     """
-    return numpy.dot(numpy.linalg.inv(a), b)
+    return numpy.dot(numpy.linalg.inv(a), b)  # inv(a)*b
 
 
 def scale(a, scalar):
@@ -193,7 +193,7 @@ def compute_angle(transform):
 
 def distances_along_trajectory(traj):
     """
-    Compute the translational distances along a trajectory. 
+    Compute the translational distances along a trajectory.
     """
     keys = traj.keys()  # key=timestamp
     keys.sort()
@@ -213,7 +213,7 @@ def distances_along_trajectory(traj):
 
 def rotations_along_trajectory(traj, scale):
     """
-    Compute the angular rotations along a trajectory. 
+    Compute the angular rotations along a trajectory.
     """
     keys = traj.keys()
     keys.sort()
@@ -229,7 +229,7 @@ def rotations_along_trajectory(traj, scale):
 
 
 def evaluate_trajectory(
-        traj_gt,
+        traj_gt,  # dict: key=timestamp, value=SE3
         traj_est,
         param_max_pairs=10000,
         param_fixed_delta=False, param_delta=1.00, param_delta_unit="s",
@@ -256,7 +256,7 @@ def evaluate_trajectory(
     Output:
     list of compared poses and the resulting translation and rotation error
     """
-    stamps_gt = list(traj_gt.keys())  # key=timestamp
+    stamps_gt = list(traj_gt.keys())  # key=index, value=timestamp
     stamps_est = list(traj_est.keys())
     stamps_gt.sort()
     stamps_est.sort()
@@ -288,6 +288,7 @@ def evaluate_trajectory(
         index_est = rotations_along_trajectory(traj_est, 1)
     elif param_delta_unit == "deg":  # 角度路程
         index_est = rotations_along_trajectory(traj_est, 180/numpy.pi)
+    # groundtruth和estimated的timestap完全一致，考虑用--1 --f 构造相邻帧
     elif param_delta_unit == "f":  # frame？range？
         index_est = range(len(traj_est))
     else:
@@ -337,19 +338,34 @@ def evaluate_trajectory(
            abs(stamp_gt_1 - (stamp_est_1 + param_offset)) > gt_max_time_difference):
             continue
 
-        error44 = ominus(
-            scale(
-                ominus(traj_est[stamp_est_1], traj_est[stamp_est_0]), param_scale),
-            ominus(traj_gt[stamp_gt_1], traj_gt[stamp_gt_0])
+        # inv(first_arg) * (second_arg)
+        relative_pose_gt = ominus(
+            traj_gt[stamp_gt_1], traj_gt[stamp_gt_0])  # A
+        relative_pose_est = scale(
+            ominus(traj_est[stamp_est_1], traj_est[stamp_est_0]), param_scale),  # B
+
+        error44 = ominus(  # inv(B)*A
+            relative_pose_est,  # B
+            relative_pose_gt  # A
         )
 
-        trans = compute_distance(error44)
-        rot = compute_angle(error44)
+        # Comparison assumption: due to the fact that the adjacent frame motion is relative small,
+        # we choose the estimated motion B=eye(4), so, error44=inv(eye(4))*A=A
+        # if VO always give still state estimation output, which can be considered as reference value
+        trans_relative_pose_gt = compute_distance(relative_pose_gt)
+        rot_relative_pose_gt = compute_angle(relative_pose_gt)
+
+        trans_error = compute_distance(error44)
+        rot_error = compute_angle(error44)
+
+        # if _error < _relative_pose_gt
+        # we can conclude that VO algorithm is work!!
 
         result.append([
             stamp_est_0, stamp_est_1,
             stamp_gt_0, stamp_gt_1,
-            trans, rot
+            trans_error, rot_error,
+            trans_relative_pose_gt, rot_relative_pose_gt
         ])
 
     if len(result) < 2:
@@ -405,6 +421,7 @@ if __name__ == '__main__':
         sys.exit(
             "The '--plot' option can only be used in combination with '--fixed_delta'")
 
+    # dict: key=timestamp, value=SE3
     traj_gt = read_trajectory(args.groundtruth_file)
     traj_est = read_trajectory(args.estimated_file)
 
@@ -422,6 +439,8 @@ if __name__ == '__main__':
     stamps = numpy.array(result)[:, 0]
     trans_error = numpy.array(result)[:, 4]
     rot_error = numpy.array(result)[:, 5]
+    trans_relative_pose_gt = numpy.array(result)[:, 6]
+    rot_relative_pose_gt = numpy.array(result)[:, 7]
 
     if args.save:
         f = open(args.save, "w")
@@ -434,6 +453,9 @@ if __name__ == '__main__':
 
         print("translational_error.rmse %f m" % numpy.sqrt(
             numpy.dot(trans_error, trans_error) / len(trans_error)))
+        print("translational_relative_pose_gt.rmse %f m" % numpy.sqrt(
+            numpy.dot(trans_relative_pose_gt, trans_relative_pose_gt) / len(trans_relative_pose_gt)))
+
         print("translational_error.mean %f m" % numpy.mean(trans_error))
         print("translational_error.median %f m" % numpy.median(trans_error))
         print("translational_error.std %f m" % numpy.std(trans_error))
@@ -463,7 +485,7 @@ if __name__ == '__main__':
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot(stamps - stamps[0], trans_error, '-', color="blue")
-        #ax.plot([t for t,e in err_rot],[e for t,e in err_rot],'-',color="red")
+        # ax.plot([t for t,e in err_rot],[e for t,e in err_rot],'-',color="red")
         ax.set_xlabel('time [s]')
         ax.set_ylabel('translational error [m]')
         plt.savefig(args.plot, dpi=300)

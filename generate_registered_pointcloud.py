@@ -107,8 +107,8 @@ def generate_pointcloud(rgb_file, depth_file, transform, downsample, pcd=False):
     list of colored points (either in binary or text format, see pcd flag)
     """
 
-    rgb=Image.open(rgb_file)
-    depth=Image.open(depth_file)
+    rgb = Image.open(rgb_file)
+    depth = Image.open(depth_file)
 
     if rgb.size != depth.size:
         raise Exception(
@@ -118,21 +118,21 @@ def generate_pointcloud(rgb_file, depth_file, transform, downsample, pcd=False):
     if depth.mode != "I":
         raise Exception("Depth image is not in intensity format")
 
-    points=[]
+    points = []
     for v in range(0, rgb.size[1], downsample):
         for u in range(0, rgb.size[0], downsample):
-            color=rgb.getpixel((u, v))
-            Z=depth.getpixel((u, v)) / scalingFactor
+            color = rgb.getpixel((u, v))
+            Z = depth.getpixel((u, v)) / scalingFactor
             if Z == 0:
                 continue
-            X=(u - centerX) * Z / focalLength
-            Y=(v - centerY) * Z / focalLength
-            vec_org=numpy.matrix([[X], [Y], [Z], [1]])
+            X = (u - centerX) * Z / focalLength
+            Y = (v - centerY) * Z / focalLength
+            vec_org = numpy.matrix([[X], [Y], [Z], [1]])
             if pcd:
                 points.append(struct.pack(
                     "fffI", vec_org[0, 0], vec_org[1, 0], vec_org[2, 0], color[0]*2**16+color[1]*2**8+color[2]*2**0))
             else:
-                vec_transf=numpy.dot(transform, vec_org)
+                vec_transf = numpy.dot(transform, vec_org)
                 points.append("%f %f %f %d %d %d 0\n" % (
                     vec_transf[0, 0], vec_transf[1, 0], vec_transf[2, 0], color[0], color[1], color[2]))
 
@@ -140,7 +140,7 @@ def generate_pointcloud(rgb_file, depth_file, transform, downsample, pcd=False):
 
 
 if __name__ == '__main__':
-    parser=argparse.ArgumentParser(description='''
+    parser = argparse.ArgumentParser(description='''
     This script reads a registered pair of color and depth images and generates a colored 3D point cloud in the
     PLY format.
     ''')
@@ -168,44 +168,44 @@ if __name__ == '__main__':
         '--pcd_format', help='Write pointclouds in pcd format (implies --individual)', action='store_true')
 
     parser.add_argument('output_file', help='output PLY file (format: ply)')
-    args=parser.parse_args()
+    args = parser.parse_args()
 
-    rgb_list=read_file_list(args.rgb_list)
-    depth_list=read_file_list(args.depth_list)
-    pose_list=read_file_list(args.trajectory_file)
+    rgb_list = read_file_list(args.rgb_list)
+    depth_list = read_file_list(args.depth_list)
+    pose_list = read_file_list(args.trajectory_file)
 
-    matches_rgb_depth=dict(associate(rgb_list, depth_list, float(
+    matches_rgb_depth = dict(associate(rgb_list, depth_list, float(
         args.depth_offset), float(args.depth_max_difference)))
-    matches_rgb_traj=associate(matches_rgb_depth, pose_list, float(
+    matches_rgb_traj = associate(matches_rgb_depth, pose_list, float(
         args.traj_offset), float(args.traj_max_difference))
     matches_rgb_traj.sort()
 
     if args.pcd_format:
-        args.individual=True
-        traj=read_trajectory(args.trajectory_file, False)
+        args.individual = True
+        traj = read_trajectory(args.trajectory_file, False)
     else:
-        traj=read_trajectory(args.trajectory_file)
+        traj = read_trajectory(args.trajectory_file)
 
-    all_points=[]
-    list=range(0, len(matches_rgb_traj), int(args.nth))
+    all_points = []
+    list = range(0, len(matches_rgb_traj), int(args.nth))
     for frame, i in enumerate(list):
-        rgb_stamp, traj_stamp=matches_rgb_traj[i]
+        rgb_stamp, traj_stamp = matches_rgb_traj[i]
 
         if args.individual:
             if args.pcd_format:
-                out_filename="%s-%f.pcd" % (
+                out_filename = "%s-%f.pcd" % (
                     os.path.splitext(args.output_file)[0], rgb_stamp)
             else:
-                out_filename="%s-%f.ply" % (
+                out_filename = "%s-%f.ply" % (
                     os.path.splitext(args.output_file)[0], rgb_stamp)
             if os.path.exists(out_filename):
                 print "skipping existing cloud file ", out_filename
                 continue
 
-        rgb_file=rgb_list[rgb_stamp][0]
-        depth_file=depth_list[matches_rgb_depth[rgb_stamp]][0]
-        pose=traj[traj_stamp]
-        points=generate_pointcloud(
+        rgb_file = rgb_list[rgb_stamp][0]
+        depth_file = depth_list[matches_rgb_depth[rgb_stamp]][0]
+        pose = traj[traj_stamp]
+        points = generate_pointcloud(
             rgb_file, depth_file, pose, int(args.downsample), args.pcd_format)
 
         if args.individual:
