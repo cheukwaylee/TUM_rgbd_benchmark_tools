@@ -93,8 +93,8 @@ def associate(first_list, second_list, offset, max_difference):
     matches -- list of matched tuples ((stamp1,data1),(stamp2,data2))
 
     """
-    first_keys = first_list.keys()  # key=timestamp
-    second_keys = second_list.keys()
+    first_keys = list(first_list.keys())  # key=timestamp
+    second_keys = list(second_list.keys())
     potential_matches = [
         (abs(a - (b + offset)), a, b)  # (时间差, first的时间戳, second的时间戳)
         for a in first_keys

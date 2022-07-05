@@ -60,10 +60,10 @@ def transform44(l):
     nq = numpy.dot(q, q)
     if nq < _EPS:
         return numpy.array((
-            (1.0,                 0.0,                 0.0, t[0])
-            (0.0,                 1.0,                 0.0, t[1])
-            (0.0,                 0.0,                 1.0, t[2])
-            (0.0,                 0.0,                 0.0, 1.0)
+            (1.0,                 0.0,                 0.0, t[0]),
+            (0.0,                 1.0,                 0.0, t[1]),
+            (0.0,                 0.0,                 1.0, t[2]),
+            (0.0,                 0.0,                 0.0, 1.0 )
         ), dtype=numpy.float64)
     q *= numpy.sqrt(2.0 / nq)
     q = numpy.outer(q, q)
@@ -200,7 +200,7 @@ def distances_along_trajectory(traj):
     motion = [  # value=SE3
         ominus(traj[keys[i+1]], traj[keys[i]]) for i in range(len(keys)-1)
         # example: motion_0 = inv(SE3_1)*(SE3_0) 1->0, 0 wrt 1
-        #      motion_1 = inv(SE3_2)*(SE3_1) 2->1, 1 wrt 2
+        #          motion_1 = inv(SE3_2)*(SE3_1) 2->1, 1 wrt 2
     ]
     distances = [0]
     sum = 0
@@ -215,7 +215,8 @@ def rotations_along_trajectory(traj, scale):
     """
     Compute the angular rotations along a trajectory.
     """
-    keys = traj.keys()
+    # keys = traj.keys()
+    keys = list(traj.keys())
     keys.sort()
     motion = [ominus(traj[keys[i+1]], traj[keys[i]])
               for i in range(len(keys)-1)]
@@ -307,7 +308,7 @@ def evaluate_trajectory(
                  random.randint(0, len(traj_est)-1))
                 for i in range(param_max_pairs)
             ]
-    else:  # 固定采样步长
+    else:  # 在间隔param_delta里面找最靠近的
         pairs = []
         for i in range(len(traj_est)):
             j = find_closest_index(index_est, index_est[i] + param_delta)
@@ -348,6 +349,7 @@ def evaluate_trajectory(
             relative_pose_est,  # B
             relative_pose_gt  # A
         )
+        error44 = error44[0]
 
         # Comparison assumption: due to the fact that the adjacent frame motion is relative small,
         # we choose the estimated motion B=eye(4), so, error44=inv(eye(4))*A=A
@@ -355,8 +357,8 @@ def evaluate_trajectory(
         trans_relative_pose_gt = compute_distance(relative_pose_gt)
         rot_relative_pose_gt = compute_angle(relative_pose_gt)
 
-        trans_error = compute_distance(error44)
-        rot_error = compute_angle(error44)
+        trans_error_ = compute_distance(error44)
+        rot_error_ = compute_angle(error44)
 
         # if _error < _relative_pose_gt
         # we can conclude that VO algorithm is work!!
@@ -364,7 +366,7 @@ def evaluate_trajectory(
         result.append([
             stamp_est_0, stamp_est_1,
             stamp_gt_0, stamp_gt_1,
-            trans_error, rot_error,
+            trans_error_, rot_error_,
             trans_relative_pose_gt, rot_relative_pose_gt
         ])
 
@@ -426,14 +428,10 @@ if __name__ == '__main__':
     traj_est = read_trajectory(args.estimated_file)
 
     result = evaluate_trajectory(
-        traj_gt,
-        traj_est,
+        traj_gt, traj_est,
         int(args.max_pairs),
-        args.fixed_delta,
-        float(args.delta),
-        args.delta_unit,
-        float(args.offset),
-        float(args.scale)
+        args.fixed_delta, float(args.delta), args.delta_unit,
+        float(args.offset), float(args.scale)
     )
 
     stamps = numpy.array(result)[:, 0]
@@ -444,6 +442,7 @@ if __name__ == '__main__':
 
     if args.save:
         f = open(args.save, "w")
+        f.write("# stamp_est0 stamp_est1 stamp_gt0 stamp_gt1 trans_error rot_error trans_relative_pose_gt rot_relative_pose_gt\n")
         f.write("\n".join([" ".join(["%f" % v for v in line])
                 for line in result]))
         f.close()
